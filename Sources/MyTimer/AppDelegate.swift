@@ -121,13 +121,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let secondary: String
         if let minutes {
             let fireDate = Date().addingTimeInterval(Double(minutes) * 60)
-            if minutes < 60 {
-                primary = "\(minutes) min"
-                secondary = "fires at \(TimeFormat.fireTime(fireDate))"
-            } else {
-                primary = TimeFormat.fireTime(fireDate)
-                secondary = "in \(TimeFormat.spokenDuration(minutes: minutes))"
-            }
+            primary = TimeFormat.spokenDuration(minutes: minutes)
+            secondary = "fires at \(TimeFormat.fireTime(fireDate))"
             DebugLog.shared.write("drag distance=\(Int(distance.rounded())) minutes=\(minutes)")
         } else {
             primary = "Cancel"
@@ -205,6 +200,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         add.target = self
         add.image = NSImage(systemSymbolName: "plus.circle", accessibilityDescription: nil)
         menu.addItem(add)
+        if !timers.isEmpty {
+            let clear = NSMenuItem(title: "Clear All Timers", action: #selector(clearAllTimers), keyEquivalent: "")
+            clear.target = self
+            clear.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
+            menu.addItem(clear)
+        }
         let login = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         login.target = self
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -222,6 +223,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         timers.removeAll { $0.id == id }
         timersChanged()
         DebugLog.shared.write("timer deleted id=\(id.uuidString)")
+    }
+
+    @objc private func clearAllTimers() {
+        timers.removeAll()
+        timersChanged()
+        DebugLog.shared.write("timers cleared from menu")
     }
 
     @objc private func showManualTimer() {

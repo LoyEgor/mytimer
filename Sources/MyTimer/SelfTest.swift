@@ -20,6 +20,7 @@ func runSelfTest() -> Int32 {
     guard TimeFormat.compactRemaining(until: now.addingTimeInterval(599 * 60), now: now) == "9h59m" else { print("FAIL hours format"); return 1 }
     guard TimeFormat.compactRemaining(until: now.addingTimeInterval(120 * 60), now: now) == "2h00m" else { print("FAIL zero-pad format"); return 1 }
     guard TimeFormat.spokenDuration(minutes: 90) == "1 hr 30 min" else { print("FAIL spoken duration"); return 1 }
+    guard TimeFormat.spokenDuration(minutes: 120) == "2 hr 0 min" else { print("FAIL spoken zero minutes"); return 1 }
 
     guard let plain = TimeFormat.parseManualEntry("90", now: now),
           abs(plain.timeIntervalSince(now) - 5400) < 1 else { print("FAIL parse minutes"); return 1 }

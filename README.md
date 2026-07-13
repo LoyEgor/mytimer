@@ -19,10 +19,11 @@ A menu-bar-only macOS timer you set by pulling. Press the timer icon in the menu
 
 ```sh
 ./build.sh
-open MyTimer.app
+ditto MyTimer.app /Applications/MyTimer.app
+open /Applications/MyTimer.app
 ```
 
-Requires macOS 14 or later. The bundle is assembled by `build.sh` from a SwiftPM release build and ad-hoc codesigned.
+Requires macOS 14 or later. The bundle is assembled by `build.sh` from a SwiftPM release build and ad-hoc codesigned. Install into `/Applications` so the login item survives repository moves and the notification center can read the bundle icon (`Assets/Assets.car` is prebuilt from `Assets/Assets.xcassets`; regenerate with `actool` if the artwork changes).
 
 ## macOS 26/27 status-item note
 

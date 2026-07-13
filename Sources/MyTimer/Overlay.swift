@@ -11,9 +11,10 @@ final class OverlayView: NSView {
         var tension = 0.0
     }
 
-    static let snapDuration = 0.34
+    static let snapDuration = 0.95
     static let cancelDuration = 0.18
     private static let retractDuration = 0.12
+    private static let bubbleFadeDuration = 0.3
     private static let pulseDuration = 0.25
     private static let primaryFont = NSFont.monospacedDigitSystemFont(ofSize: 24, weight: .semibold)
     private static let secondaryFont = NSFont.systemFont(ofSize: 12, weight: .medium)
@@ -135,7 +136,7 @@ final class OverlayView: NSView {
         y = max(8, min(y, bounds.maxY - height - 8))
         bubble.frame = NSRect(x: x, y: y, width: width, height: height)
         if case .snapping(let start) = phase {
-            bubble.alphaValue = max(0, 1 - (CACurrentMediaTime() - start) / Self.snapDuration)
+            bubble.alphaValue = max(0, 1 - (CACurrentMediaTime() - start) / Self.bubbleFadeDuration)
         } else {
             bubble.alphaValue = 1
         }
@@ -172,6 +173,7 @@ final class OverlayView: NSView {
                 drawKnob(context, at: tip, color: colors.0, radius: 6 * (1 - 0.6 * x), alpha: 1)
             } else {
                 let u = min(1, (t - Self.retractDuration) / (Self.snapDuration - Self.retractDuration))
+                drawBloom(context, at: start, color: colors.0, progress: u)
                 drawRipple(context, at: start, color: colors.0, progress: u)
             }
         case .cancelling(let startTime):
@@ -253,9 +255,26 @@ final class OverlayView: NSView {
         context.restoreGState()
     }
 
+    private func drawBloom(_ context: CGContext, at point: NSPoint, color: NSColor, progress: Double) {
+        // Soft, slow "applied" reaction: a wide glow easing out well past the
+        // menu bar rather than a quick blink.
+        let eased = 1 - pow(1 - progress, 2)
+        let alpha = 0.38 * pow(1 - progress, 1.4)
+        guard alpha > 0.01 else { return }
+        let radius = 14 + 96 * eased
+        let stops = [color.withAlphaComponent(alpha).cgColor, color.withAlphaComponent(0).cgColor] as CFArray
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let gradient = CGGradient(colorsSpace: space, colors: stops, locations: [0, 1]) else { return }
+        context.saveGState()
+        context.drawRadialGradient(gradient, startCenter: point, startRadius: 0,
+                                   endCenter: point, endRadius: radius, options: [])
+        context.restoreGState()
+    }
+
     private func drawRipple(_ context: CGContext, at point: NSPoint, color: NSColor, progress: Double) {
-        let radius = 4 + 24 * progress
-        let alpha = 0.55 * (1 - progress)
+        let eased = 1 - pow(1 - progress, 2)
+        let radius = 6 + 52 * eased
+        let alpha = 0.3 * (1 - progress)
         context.saveGState()
         context.setStrokeColor(color.withAlphaComponent(alpha).cgColor)
         context.setLineWidth(2.5 * (1 - progress) + 0.5)

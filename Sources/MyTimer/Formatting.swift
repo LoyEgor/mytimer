@@ -24,9 +24,8 @@ enum TimeFormat {
 
     static func spokenDuration(minutes: Int) -> String {
         if minutes < 60 { return "\(minutes) min" }
-        let hours = minutes / 60
-        let rest = minutes % 60
-        return rest == 0 ? "\(hours) hr" : "\(hours) hr \(rest) min"
+        // Always include minutes so the drag bubble width stays stable.
+        return "\(minutes / 60) hr \(minutes % 60) min"
     }
 
     static func remainingDescription(until date: Date, now: Date = Date()) -> String {

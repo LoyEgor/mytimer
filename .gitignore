@@ -1,0 +1,4 @@
+.build/
+.swiftpm/
+MyTimer.app/
+.DS_Store

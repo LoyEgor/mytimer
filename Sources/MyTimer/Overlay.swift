@@ -16,8 +16,8 @@ final class OverlayView: NSView {
     private static let retractDuration = 0.12
     private static let bubbleFadeDuration = 0.3
     private static let pulseDuration = 0.25
-    private static let primaryFont = NSFont.monospacedDigitSystemFont(ofSize: 24, weight: .semibold)
-    private static let secondaryFont = NSFont.systemFont(ofSize: 12, weight: .medium)
+    private static let primaryFont = NSFont.monospacedDigitSystemFont(ofSize: 19, weight: .semibold)
+    private static let secondaryFont = NSFont.systemFont(ofSize: 14, weight: .medium)
 
     private enum Phase {
         case dragging
@@ -154,14 +154,14 @@ final class OverlayView: NSView {
             .insetBy(dx: -80, dy: -80)
         guard segment.intersects(bounds) else { return }
         let cursorVisible = bounds.insetBy(dx: -60, dy: -60).contains(end)
-        let colors = bandColors()
+        let line = lineColor()
         switch phase {
         case .dragging:
-            drawBand(context, from: start, to: end, colors: colors, widthScale: 1, alpha: 1, sagBoost: 1)
-            drawAnchor(context, at: start, color: colors.0, alpha: 1)
+            drawBand(context, from: start, to: end, color: line, widthScale: 1, alpha: 1, sagBoost: 1)
+            drawAnchor(context, at: start, color: line, alpha: 1)
             if cursorVisible {
-                drawKnob(context, at: end, color: colors.0, radius: 6, alpha: 1)
-                drawTickPulse(context, at: end, color: colors.0)
+                drawKnob(context, at: end, color: line, radius: 6, alpha: 1)
+                drawTickPulse(context, at: end, color: line)
             }
         case .snapping(let startTime):
             let t = CACurrentMediaTime() - startTime
@@ -169,31 +169,30 @@ final class OverlayView: NSView {
                 let x = t / Self.retractDuration
                 let s = 1 - x * x
                 let tip = NSPoint(x: start.x + (end.x - start.x) * s, y: start.y + (end.y - start.y) * s)
-                drawBand(context, from: start, to: tip, colors: colors, widthScale: 1 - 0.5 * x, alpha: 1, sagBoost: 1 - x)
-                drawKnob(context, at: tip, color: colors.0, radius: 6 * (1 - 0.6 * x), alpha: 1)
+                drawBand(context, from: start, to: tip, color: line, widthScale: 1 - 0.5 * x, alpha: 1, sagBoost: 1 - x)
+                drawKnob(context, at: tip, color: line, radius: 6 * (1 - 0.6 * x), alpha: 1)
             } else {
                 let u = min(1, (t - Self.retractDuration) / (Self.snapDuration - Self.retractDuration))
-                drawBloom(context, at: start, color: colors.0, progress: u)
-                drawRipple(context, at: start, color: colors.0, progress: u)
+                drawBloom(context, at: start, color: .controlAccentColor, progress: u)
+                drawRipple(context, at: start, color: .controlAccentColor, progress: u)
             }
         case .cancelling(let startTime):
             let t = CACurrentMediaTime() - startTime
             let x = min(1, t / Self.cancelDuration)
-            drawBand(context, from: start, to: end, colors: colors, widthScale: 1, alpha: 1 - x, sagBoost: 1 + 2.5 * x)
+            drawBand(context, from: start, to: end, color: line, widthScale: 1, alpha: 1 - x, sagBoost: 1 + 2.5 * x)
             if cursorVisible {
-                drawKnob(context, at: end, color: colors.0, radius: 6, alpha: 1 - x)
+                drawKnob(context, at: end, color: line, radius: 6, alpha: 1 - x)
             }
         }
     }
 
-    private func bandColors() -> (NSColor, NSColor) {
-        if model.cancelled { return (.systemRed, .systemOrange) }
-        let accent = NSColor.controlAccentColor
-        return (accent, accent.blended(withFraction: 0.45, of: .white) ?? accent)
+    // Black in light mode, white in dark mode; red only in the cancel zone.
+    private func lineColor() -> NSColor {
+        model.cancelled ? .systemRed : .labelColor
     }
 
     private func drawBand(_ context: CGContext, from start: NSPoint, to end: NSPoint,
-                          colors: (NSColor, NSColor), widthScale: Double, alpha: Double, sagBoost: Double) {
+                          color: NSColor, widthScale: Double, alpha: Double, sagBoost: Double) {
         let distance = hypot(end.x - start.x, end.y - start.y)
         guard distance > 1, alpha > 0 else { return }
         let sag = min(60, distance * 0.18) * pow(max(0, 1 - model.tension), 1.4) * sagBoost
@@ -202,19 +201,23 @@ final class OverlayView: NSView {
         path.move(to: start)
         path.addQuadCurve(to: end, control: control)
 
-        let (head, tail) = colors
         context.saveGState()
         context.setLineCap(.round)
-        context.addPath(path)
-        context.setLineWidth(9 * widthScale)
-        context.setStrokeColor(head.withAlphaComponent(0.22 * alpha).cgColor)
-        context.strokePath()
+        // The wide halo stripe only builds up as the pull gets longer.
+        let haloAlpha = 0.25 * min(1, model.tension * 1.3) * alpha
+        if haloAlpha > 0.01 {
+            context.addPath(path)
+            context.setLineWidth(9 * widthScale)
+            context.setStrokeColor(color.withAlphaComponent(haloAlpha).cgColor)
+            context.strokePath()
+        }
 
         context.addPath(path)
         context.setLineWidth(max(1, 3.2 * widthScale))
         context.replacePathWithStrokedPath()
         context.clip()
-        let gradientColors = [head.withAlphaComponent(alpha).cgColor, tail.withAlphaComponent(alpha).cgColor] as CFArray
+        let gradientColors = [color.withAlphaComponent(alpha).cgColor,
+                              color.withAlphaComponent(0.55 * alpha).cgColor] as CFArray
         if let space = CGColorSpace(name: CGColorSpace.sRGB),
            let gradient = CGGradient(colorsSpace: space, colors: gradientColors, locations: [0, 1]) {
             context.drawLinearGradient(gradient, start: start, end: end,
@@ -237,7 +240,7 @@ final class OverlayView: NSView {
         context.setShadow(offset: .zero, blur: 8, color: color.withAlphaComponent(0.5 * alpha).cgColor)
         context.setFillColor(color.withAlphaComponent(alpha).cgColor)
         context.fillEllipse(in: rect)
-        context.setFillColor(NSColor.white.withAlphaComponent(0.9 * alpha).cgColor)
+        context.setFillColor(NSColor.windowBackgroundColor.withAlphaComponent(0.9 * alpha).cgColor)
         context.fillEllipse(in: rect.insetBy(dx: radius * 0.55, dy: radius * 0.55))
         context.restoreGState()
     }
@@ -246,12 +249,11 @@ final class OverlayView: NSView {
         guard pulseStart > 0 else { return }
         let progress = (CACurrentMediaTime() - pulseStart) / Self.pulseDuration
         guard progress < 1 else { return }
-        let radius = 7 + 14 * progress
+        let radius = 7 + 15 * progress
         context.saveGState()
-        context.setStrokeColor(color.withAlphaComponent(0.35 * (1 - progress)).cgColor)
-        context.setLineWidth(1.5)
-        context.strokeEllipse(in: NSRect(x: point.x - radius, y: point.y - radius,
-                                         width: radius * 2, height: radius * 2))
+        context.setFillColor(color.withAlphaComponent(0.22 * (1 - progress)).cgColor)
+        context.fillEllipse(in: NSRect(x: point.x - radius, y: point.y - radius,
+                                       width: radius * 2, height: radius * 2))
         context.restoreGState()
     }
 
@@ -296,6 +298,12 @@ final class OverlayController {
         ) { [weak self] _ in
             self?.hideNow()
         }
+    }
+
+    // Window construction takes long enough to make the band visibly late if
+    // deferred to the first drag event; build on mouse-down instead.
+    func prewarm() {
+        if windows.isEmpty { buildWindows() }
     }
 
     func update(origin: NSPoint, cursor: NSPoint, primary: String, secondary: String,

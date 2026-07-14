@@ -4,7 +4,7 @@ A menu-bar-only macOS timer you set by pulling. Press the timer icon in the menu
 
 ## Features
 
-- Drag-to-set with a smooth exponential distance-to-duration curve (1 minute at ~20 px, ~10 hours at screen center), 1-minute steps under an hour, 5-minute steps above
+- Drag-to-set with a smooth exponential distance-to-duration curve (1 minute at ~20 px, ~10 hours at screen center, growing further beyond); cursor speed picks the granularity — glide slowly for 1-minute precision, faster movement steps by 5, 10, or 30 minutes
 - Gradient rubber-band line growing from the icon glyph, with sag that tightens as you pull, a knob under the cursor, and a floating blurred value bubble
 - Haptic tick plus a subtle pulse ring from the knob on every value change, snap-back and ripple animation on release, fade-out on cancel
 - Release close to the icon (under 20 px) to cancel — the band turns red while in the cancel zone

@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import ServiceManagement
 @preconcurrency import UserNotifications
 
@@ -21,6 +22,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private var trackingWatchdog: Foundation.Timer?
     private var manualPanel: ManualTimerPanel?
     private var lastDragMinutes: Int?
+    private var lastMovePoint: NSPoint?
+    private var lastMoveTime = 0.0
+    private var dragSpeed = 0.0
     private var lastStatusTitle = ""
     private let defaultsKey = "activeTimers"
     private let loginOptOutKey = "launchAtLoginOptOut"
@@ -45,9 +49,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     private func configureStatusItem() {
         guard let button = statusItem.button else { return }
-        button.image = NSImage(systemSymbolName: "timer", accessibilityDescription: "MyTimer")
-        button.image?.isTemplate = true
-        button.imagePosition = .imageOnly
+        let symbol = NSImage(systemSymbolName: "timer", accessibilityDescription: "MyTimer")?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 15, weight: .regular))
+        symbol?.isTemplate = true
+        button.image = symbol
+        // Trailing keeps the icon glyph anchored while the countdown text
+        // grows and shrinks to its left.
+        button.imagePosition = .imageTrailing
         button.target = self
         button.action = #selector(statusMouseDown(_:))
         button.sendAction(on: [.leftMouseDown])
@@ -57,11 +65,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     @objc private func statusMouseDown(_ sender: NSStatusBarButton) {
         guard localMonitor == nil, NSApp.currentEvent != nil, let window = sender.window else { return }
         // The band grows from the icon glyph: with a countdown title the icon
-        // sits in the leading square of the button, not at its center.
+        // sits in the trailing square of the button, not at its center.
         let frame = window.frame
-        let iconCenterX = timers.isEmpty ? frame.midX : frame.minX + frame.height / 2
+        let iconCenterX = timers.isEmpty ? frame.midX : frame.maxX - frame.height / 2
         trackingOrigin = NSPoint(x: iconCenterX, y: frame.midY)
         dragEngageMaxY = frame.minY - Interaction.dragEngageGap
+        overlay.prewarm()
+        lastMovePoint = nil
+        lastMoveTime = 0
+        dragSpeed = 0
         dragging = false
         trackingActive = true
         lastDragMinutes = nil
@@ -111,8 +123,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     private func updateDrag(at point: NSPoint, distance: Double) {
+        let now = CACurrentMediaTime()
+        if let lastMovePoint, lastMoveTime > 0, now > lastMoveTime {
+            let instant = hypot(point.x - lastMovePoint.x, point.y - lastMovePoint.y) / (now - lastMoveTime)
+            dragSpeed = dragSpeed == 0 ? instant : dragSpeed * 0.7 + instant * 0.3
+        }
+        lastMovePoint = point
+        lastMoveTime = now
         let anchor = centerAnchorDistance()
-        let minutes = DurationMapping.minutes(distance: distance, anchorDistance: anchor)
+        let minutes = DurationMapping.minutes(distance: distance, anchorDistance: anchor,
+                                              step: Interaction.step(forSpeed: dragSpeed))
         if minutes != lastDragMinutes {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
             lastDragMinutes = minutes
@@ -381,15 +401,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             let title = TimeFormat.compactRemaining(until: next.fireDate)
             button.attributedTitle = NSAttributedString(
                 string: title,
-                attributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)])
-            button.imagePosition = .imageLeading
+                attributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium),
+                             // Centers the text against the 15 pt symbol.
+                             .baselineOffset: -1])
             if title != lastStatusTitle {
                 lastStatusTitle = title
                 DebugLog.shared.write("status title=\(title)")
             }
         } else {
             button.title = ""
-            button.imagePosition = .imageOnly
             lastStatusTitle = ""
         }
     }

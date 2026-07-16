@@ -32,11 +32,9 @@ func runSelfTest() -> Int32 {
     guard let beyond = DurationMapping.minutes(distance: 2000, anchorDistance: anchor), beyond > 600 else {
         print("FAIL growth beyond anchor"); return 1
     }
-    guard let five = DurationMapping.minutes(distance: 400, anchorDistance: anchor, step: 5), five % 5 == 0,
-          let thirty = DurationMapping.minutes(distance: 400, anchorDistance: anchor, step: 30), thirty % 30 == 0,
-          DurationMapping.minutes(distance: 25, anchorDistance: anchor, step: 30) == 30 else { print("FAIL step rounding"); return 1 }
-    guard Interaction.step(forSpeed: 20) == 1, Interaction.step(forSpeed: 60) == 5,
-          Interaction.step(forSpeed: 120) == 10, Interaction.step(forSpeed: 300) == 30 else { print("FAIL speed steps"); return 1 }
+    guard DurationMapping.minutes(distance: 400, anchorDistance: anchor) == 79 else {
+        print("FAIL minute rounding"); return 1
+    }
 
     let samples = [50, 100, 200, 300, 400].compactMap { DurationMapping.minutes(distance: Double($0), anchorDistance: anchor) }
     print("PASS mapping minimum=1 center=600 beyond-anchor=growing monotonic=true samples=\(samples)")

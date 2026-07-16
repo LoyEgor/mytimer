@@ -1,5 +1,4 @@
 import AppKit
-import QuartzCore
 import ServiceManagement
 @preconcurrency import UserNotifications
 
@@ -22,9 +21,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private var trackingWatchdog: Foundation.Timer?
     private var manualPanel: ManualTimerPanel?
     private var lastDragMinutes: Int?
-    private var lastMovePoint: NSPoint?
-    private var lastMoveTime = 0.0
-    private var dragSpeed = 0.0
     private var lastStatusTitle = ""
     private let defaultsKey = "activeTimers"
     private let loginOptOutKey = "launchAtLoginOptOut"
@@ -71,9 +67,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         trackingOrigin = NSPoint(x: iconCenterX, y: frame.midY)
         dragEngageMaxY = frame.minY - Interaction.dragEngageGap
         overlay.prewarm()
-        lastMovePoint = nil
-        lastMoveTime = 0
-        dragSpeed = 0
         dragging = false
         trackingActive = true
         lastDragMinutes = nil
@@ -123,16 +116,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     private func updateDrag(at point: NSPoint, distance: Double) {
-        let now = CACurrentMediaTime()
-        if let lastMovePoint, lastMoveTime > 0, now > lastMoveTime {
-            let instant = hypot(point.x - lastMovePoint.x, point.y - lastMovePoint.y) / (now - lastMoveTime)
-            dragSpeed = dragSpeed == 0 ? instant : dragSpeed * 0.7 + instant * 0.3
-        }
-        lastMovePoint = point
-        lastMoveTime = now
         let anchor = centerAnchorDistance()
-        let minutes = DurationMapping.minutes(distance: distance, anchorDistance: anchor,
-                                              step: Interaction.step(forSpeed: dragSpeed))
+        let minutes = DurationMapping.minutes(distance: distance, anchorDistance: anchor)
         if minutes != lastDragMinutes {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
             lastDragMinutes = minutes

@@ -4,9 +4,9 @@ A menu-bar-only macOS timer you set by pulling. Press the timer icon in the menu
 
 ## Features
 
-- Drag-to-set with a smooth exponential distance-to-duration curve (1 minute at ~20 px, ~10 hours at screen center, growing further beyond); cursor speed picks the granularity — glide slowly for 1-minute precision, faster movement steps by 5, 10, or 30 minutes
+- Drag-to-set with a smooth exponential distance-to-duration curve and 1-minute precision at every cursor speed (1 minute at ~20 px, ~10 hours at screen center, growing further beyond)
 - Gradient rubber-band line growing from the icon glyph, with sag that tightens as you pull, a knob under the cursor, and a floating blurred value bubble
-- Haptic tick plus a subtle pulse ring from the knob on every value change, snap-back and ripple animation on release, fade-out on cancel
+- Haptic tick on every value change, a motion-reactive contrasting backdrop around the line and knob, snap-back and ripple animation on release, fade-out on cancel
 - Release close to the icon (under 20 px) to cancel — the band turns red while in the cancel zone
 - Click without dragging for a menu that drops below the icon: active timers with fire time and time left, per-timer delete, manual entry (`90` for minutes or `17:30` for a wall-clock time), launch-at-login toggle, quit
 - Sound (Glass) plus a user notification when a timer fires, with a floating alert as fallback

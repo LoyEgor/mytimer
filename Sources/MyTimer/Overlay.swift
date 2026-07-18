@@ -18,6 +18,8 @@ final class OverlayView: NSView {
     private static let motionHoldDuration = 0.08
     private static let lineWidth = 3.2
     private static let backdropLineWidth = 9.0
+    // Fade out hand-jitter stubs without delaying the real pull geometry.
+    private static let appearRamp = (start: 4.0, length: 12.0)
     private static let primaryFont = NSFont.monospacedDigitSystemFont(ofSize: 19, weight: .semibold)
     private static let secondaryFont = NSFont.systemFont(ofSize: 14, weight: .medium)
 
@@ -172,15 +174,17 @@ final class OverlayView: NSView {
         let backdrop = backdropColor()
         switch phase {
         case .dragging:
+            let distance = hypot(end.x - start.x, end.y - start.y)
+            let alpha = max(0, min(1, (distance - Self.appearRamp.start) / Self.appearRamp.length))
             if cursorVisible {
                 drawKnobBackdrop(context, at: end, color: backdrop, radius: 6,
-                                 alpha: 1, expansion: 4 * motionLevel)
+                                 alpha: alpha, expansion: 4 * motionLevel)
             }
             drawBand(context, from: start, to: end, color: line, backdropColor: backdrop,
-                     widthScale: 1, alpha: 1, sagBoost: 1)
-            drawAnchor(context, at: start, color: line, alpha: 1)
+                     widthScale: 1, alpha: alpha, sagBoost: 1)
+            drawAnchor(context, at: start, color: line, alpha: alpha)
             if cursorVisible {
-                drawKnob(context, at: end, color: line, radius: 6, alpha: 1)
+                drawKnob(context, at: end, color: line, radius: 6, alpha: alpha)
             }
         case .snapping(let startTime):
             let t = CACurrentMediaTime() - startTime

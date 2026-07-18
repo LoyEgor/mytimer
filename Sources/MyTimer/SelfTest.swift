@@ -15,9 +15,10 @@ func runSelfTest() -> Int32 {
 
     let now = Date(timeIntervalSince1970: 1_700_000_000)
     guard TimeFormat.compactRemaining(until: now.addingTimeInterval(30), now: now) == "30s" else { print("FAIL seconds format"); return 1 }
-    guard TimeFormat.compactRemaining(until: now.addingTimeInterval(45 * 60), now: now) == "45m" else { print("FAIL minutes format"); return 1 }
-    guard TimeFormat.compactRemaining(until: now.addingTimeInterval(599 * 60), now: now) == "9h59m" else { print("FAIL hours format"); return 1 }
-    guard TimeFormat.compactRemaining(until: now.addingTimeInterval(120 * 60), now: now) == "2h00m" else { print("FAIL zero-pad format"); return 1 }
+    guard TimeFormat.compactRemaining(until: now.addingTimeInterval(59.6), now: now) == "59s" else { print("FAIL seconds clamp"); return 1 }
+    guard TimeFormat.compactRemaining(until: now.addingTimeInterval(45 * 60), now: now) == "45" else { print("FAIL minutes format"); return 1 }
+    guard TimeFormat.compactRemaining(until: now.addingTimeInterval(599 * 60), now: now) == "9h59" else { print("FAIL hours format"); return 1 }
+    guard TimeFormat.compactRemaining(until: now.addingTimeInterval(120 * 60), now: now) == "2h00" else { print("FAIL zero-pad format"); return 1 }
     guard TimeFormat.spokenDuration(minutes: 90) == "1 hr 30 min" else { print("FAIL spoken duration"); return 1 }
     guard TimeFormat.spokenDuration(minutes: 120) == "2 hr 0 min" else { print("FAIL spoken zero minutes"); return 1 }
 

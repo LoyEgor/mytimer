@@ -10,6 +10,10 @@ if let index = arguments.firstIndex(of: "--send-add-seconds"), arguments.indices
     postDebugCommand(["command": "add-seconds", "seconds": seconds])
     exit(0)
 }
+if let index = arguments.firstIndex(of: "--send-delete-id"), arguments.indices.contains(index + 1) {
+    postDebugCommand(["command": "delete-id", "prefix": arguments[index + 1]])
+    exit(0)
+}
 if arguments.contains("--send-clear") {
     postDebugCommand(["command": "clear"])
     exit(0)

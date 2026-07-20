@@ -9,6 +9,12 @@ struct TimerRecord: Codable {
     let createdAt: Date?
 }
 
+enum TimerLogic {
+    static func expired(_ timers: [TimerRecord], now: Date) -> [TimerRecord] {
+        timers.filter { $0.fireDate <= now }
+    }
+}
+
 struct StatusSegmentData {
     let id: UUID
     let text: NSAttributedString
@@ -108,6 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private let overlay = OverlayController()
     private var timers: [TimerRecord] = []
     private var updateTimer: Foundation.Timer?
+    private var activityToken: NSObjectProtocol?
     private var trackingOrigin = NSPoint.zero
     private var dragEngageMaxY = 0.0
     private var dragging = false {
@@ -144,6 +151,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         syncLoginItem()
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(handleDebugCommand(_:)), name: debugCommandNotification, object: nil)
+        // Foundation.Timer does not run during system sleep, so catch up on wake.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(handleWake), name: NSWorkspace.didWakeNotification, object: nil)
         tick()
         writeFrame()
         DebugLog.shared.write("app launched")
@@ -153,6 +163,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         removeEventMonitors()
         statusRefreshWorkItem?.cancel()
         DistributedNotificationCenter.default().removeObserver(self)
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+        if let activityToken {
+            ProcessInfo.processInfo.endActivity(activityToken)
+            self.activityToken = nil
+        }
+    }
+
+    @objc private func handleWake() {
+        DebugLog.shared.write("system woke; re-ticking")
+        tick()
     }
 
     private func configureStatusItem() {
@@ -504,7 +524,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         if timers.isEmpty {
             updateTimer?.invalidate()
             updateTimer = nil
-        } else if updateTimer == nil {
+            if let activityToken {
+                ProcessInfo.processInfo.endActivity(activityToken)
+                self.activityToken = nil
+            }
+            return
+        }
+        // App Nap can throttle a background accessory app's timer; the activity
+        // token keeps 1s fires on time while the Mac is awake.
+        if activityToken == nil {
+            activityToken = ProcessInfo.processInfo.beginActivity(
+                options: [.userInitiated], reason: "Active countdown timers")
+        }
+        // An invalidated-but-non-nil timer would otherwise block rescheduling forever.
+        if updateTimer?.isValid != true {
+            updateTimer?.invalidate()
             let timer = Foundation.Timer(timeInterval: 1, repeats: true) { [weak self] _ in
                 self?.tick()
             }
@@ -517,13 +551,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     private func tick() {
         let now = Date()
-        let expired = timers.filter { $0.fireDate <= now }
+        let expired = TimerLogic.expired(timers, now: now)
         if !expired.isEmpty {
             timers.removeAll { $0.fireDate <= now }
             timersChanged()
             expired.forEach(fire)
         } else {
             updateStatusItem()
+            syncTickTimer()
         }
     }
 
@@ -589,7 +624,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             DebugLog.shared.write("timers store corrupted, cleared")
             return
         }
-        timers = decoded.sorted { $0.fireDate < $1.fireDate }
+        timers = decoded
+        // Route restore through the same choke point as every other mutation so
+        // the ticker, display, and persisted store cannot fall out of sync.
+        timersChanged()
         DebugLog.shared.write("timers restored count=\(timers.count)")
     }
 

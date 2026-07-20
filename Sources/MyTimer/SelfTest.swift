@@ -37,8 +37,24 @@ func runSelfTest() -> Int32 {
         print("FAIL minute rounding"); return 1
     }
 
+    let base = Date(timeIntervalSince1970: 1_700_000_000)
+    let records = [
+        TimerRecord(id: UUID(), fireDate: base.addingTimeInterval(-30), createdAt: base),
+        TimerRecord(id: UUID(), fireDate: base.addingTimeInterval(90), createdAt: base),
+    ]
+    guard let encoded = try? JSONEncoder().encode(records),
+          let roundTripped = try? JSONDecoder().decode([TimerRecord].self, from: encoded),
+          roundTripped.count == 2 else { print("FAIL record round-trip"); return 1 }
+    guard let legacy = "[{\"id\":\"\(UUID().uuidString)\",\"fireDate\":0}]".data(using: .utf8),
+          let legacyDecoded = try? JSONDecoder().decode([TimerRecord].self, from: legacy),
+          legacyDecoded.first?.createdAt == nil else { print("FAIL legacy decode"); return 1 }
+    guard TimerLogic.expired(roundTripped, now: base).count == 1 else { print("FAIL expired partition"); return 1 }
+    guard TimerLogic.expired(roundTripped, now: base.addingTimeInterval(120)).count == 2 else { print("FAIL expired all"); return 1 }
+    guard TimerLogic.expired([], now: base).isEmpty else { print("FAIL expired empty"); return 1 }
+
     let samples = [50, 100, 200, 300, 400].compactMap { DurationMapping.minutes(distance: Double($0), anchorDistance: anchor) }
     print("PASS mapping minimum=1 center=600 beyond-anchor=growing monotonic=true samples=\(samples)")
+    print("PASS record round-trip, legacy decode, expiry partition")
     print("PASS formatting and manual-entry parsing")
     print("PASS state dragEngageGap=\(Int(Interaction.dragEngageGap)) cancelThreshold=\(Int(DurationMapping.minimumDistance))")
     return 0

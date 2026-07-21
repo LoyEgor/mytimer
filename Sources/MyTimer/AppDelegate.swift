@@ -13,6 +13,13 @@ enum TimerLogic {
     static func expired(_ timers: [TimerRecord], now: Date) -> [TimerRecord] {
         timers.filter { $0.fireDate <= now }
     }
+
+    static func warningStage(remaining: TimeInterval) -> Int? {
+        guard remaining > 0 else { return nil }
+        if remaining <= 5 { return 5 }
+        if remaining <= 10 { return 10 }
+        return nil
+    }
 }
 
 struct StatusSegmentData {
@@ -116,6 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private var timers: [TimerRecord] = []
     private var updateTimer: Foundation.Timer?
     private var activityToken: NSObjectProtocol?
+    private var warningRippleStages: [UUID: Set<Int>] = [:]
     private var trackingOrigin = NSPoint.zero
     private var dragEngageMaxY = 0.0
     private var dragging = false {
@@ -517,6 +525,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     private func timersChanged() {
         timers.sort { $0.fireDate < $1.fireDate }
+        let activeIDs = Set(timers.map(\.id))
+        warningRippleStages = warningRippleStages.filter { activeIDs.contains($0.key) }
         persistTimers()
         updateStatusItem()
         syncTickTimer()
@@ -553,6 +563,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     private func tick() {
         let now = Date()
+        triggerWarningRipples(now: now)
         let expired = TimerLogic.expired(timers, now: now)
         if !expired.isEmpty {
             let rippleOrigin = statusIconCenter()
@@ -565,6 +576,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
     }
 
+    private func triggerWarningRipples(now: Date) {
+        guard let origin = statusIconCenter() else { return }
+        for timer in timers {
+            let remaining = timer.fireDate.timeIntervalSince(now)
+            guard let stage = TimerLogic.warningStage(remaining: remaining),
+                  warningRippleStages[timer.id]?.contains(stage) != true else { continue }
+            warningRippleStages[timer.id, default: []].insert(stage)
+            fireOverlay.ripple(at: origin, duration: OverlayView.rippleDuration)
+            DebugLog.shared.write(
+                "timer warning ripple stage=\(stage)s id=\(timer.id.uuidString) origin=\(pointString(origin))")
+        }
+    }
+
     private func fire(_ timer: TimerRecord, rippleOrigin: NSPoint?) {
         let soundPlayed: Bool
         if let sound = NSSound(named: "Hero") {
@@ -574,7 +598,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             soundPlayed = true
         }
         if let rippleOrigin {
-            fireOverlay.ripple(at: rippleOrigin)
+            fireOverlay.ripple(at: rippleOrigin, duration: OverlayView.fireRippleDuration)
             DebugLog.shared.write("timer ripple origin=\(pointString(rippleOrigin))")
         }
         DebugLog.shared.write("timer fired id=\(timer.id.uuidString) sound=\(soundPlayed)")

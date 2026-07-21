@@ -51,6 +51,12 @@ func runSelfTest() -> Int32 {
     guard TimerLogic.expired(roundTripped, now: base).count == 1 else { print("FAIL expired partition"); return 1 }
     guard TimerLogic.expired(roundTripped, now: base.addingTimeInterval(120)).count == 2 else { print("FAIL expired all"); return 1 }
     guard TimerLogic.expired([], now: base).isEmpty else { print("FAIL expired empty"); return 1 }
+    guard TimerLogic.warningStage(remaining: 10.1) == nil,
+          TimerLogic.warningStage(remaining: 10) == 10,
+          TimerLogic.warningStage(remaining: 5.1) == 10,
+          TimerLogic.warningStage(remaining: 5) == 5,
+          TimerLogic.warningStage(remaining: 0.1) == 5,
+          TimerLogic.warningStage(remaining: 0) == nil else { print("FAIL warning stages"); return 1 }
 
     let samples = [50, 100, 200, 300, 400].compactMap { DurationMapping.minutes(distance: Double($0), anchorDistance: anchor) }
     print("PASS mapping minimum=1 center=600 beyond-anchor=growing monotonic=true samples=\(samples)")

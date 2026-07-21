@@ -28,7 +28,7 @@ final class OverlayView: NSView {
     private enum Phase {
         case dragging
         case snapping(CFTimeInterval)
-        case rippling(CFTimeInterval)
+        case rippling(CFTimeInterval, Double)
         case cancelling(CFTimeInterval)
     }
 
@@ -88,8 +88,8 @@ final class OverlayView: NSView {
         ensureDisplayLink()
     }
 
-    func ripple(at point: NSPoint) {
-        phase = .rippling(CACurrentMediaTime())
+    func ripple(at point: NSPoint, duration: Double) {
+        phase = .rippling(CACurrentMediaTime(), duration)
         model = Model(originScreen: point, cursorScreen: point)
         updateBubble()
         ensureDisplayLink()
@@ -121,8 +121,8 @@ final class OverlayView: NSView {
             active = moving || motionLevel > 0.001
         case .snapping(let start):
             active = now - start < Self.snapDuration
-        case .rippling(let start):
-            active = now - start < Self.fireRippleDuration
+        case .rippling(let start, let duration):
+            active = now - start < duration
         case .cancelling(let start):
             active = now - start < Self.cancelDuration
         }
@@ -214,8 +214,8 @@ final class OverlayView: NSView {
                 drawBloom(context, at: start, color: .controlAccentColor, progress: u)
                 drawRipple(context, at: start, color: .controlAccentColor, progress: u)
             }
-        case .rippling(let startTime):
-            let progress = min(1, (CACurrentMediaTime() - startTime) / Self.fireRippleDuration)
+        case .rippling(let startTime, let duration):
+            let progress = min(1, (CACurrentMediaTime() - startTime) / duration)
             drawBloom(context, at: start, color: .controlAccentColor, progress: progress)
             drawRipple(context, at: start, color: .controlAccentColor, progress: progress)
         case .cancelling(let startTime):
@@ -387,12 +387,12 @@ final class OverlayController {
         scheduleHide(after: delay)
     }
 
-    func ripple(at point: NSPoint) {
+    func ripple(at point: NSPoint, duration: Double) {
         hideWorkItem?.cancel()
         hideWorkItem = nil
         if windows.isEmpty { buildWindows() }
-        forEachView { $0.ripple(at: point) }
-        scheduleHide(after: OverlayView.fireRippleDuration + 0.05)
+        forEachView { $0.ripple(at: point, duration: duration) }
+        scheduleHide(after: duration + 0.05)
     }
 
     private func scheduleHide(after delay: Double) {

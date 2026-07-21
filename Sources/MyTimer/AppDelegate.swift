@@ -112,6 +112,7 @@ enum StatusLayout {
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let overlay = OverlayController()
+    private let fireOverlay = OverlayController()
     private var timers: [TimerRecord] = []
     private var updateTimer: Foundation.Timer?
     private var activityToken: NSObjectProtocol?
@@ -161,6 +162,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func applicationWillTerminate(_ notification: Notification) {
         removeEventMonitors()
+        overlay.hideNow()
+        fireOverlay.hideNow()
         statusRefreshWorkItem?.cancel()
         DistributedNotificationCenter.default().removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
@@ -242,10 +245,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // always starts fresh instead of silently bailing.
         removeEventMonitors()
         trackingActive = false
-        guard let window = sender.window else { return }
+        guard let window = sender.window, let iconCenter = statusIconCenter() else { return }
         let frame = window.frame
-        let iconScreen = window.convertToScreen(statusIconView.convert(statusIconView.bounds, to: nil))
-        trackingOrigin = NSPoint(x: iconScreen.midX, y: frame.midY)
+        trackingOrigin = NSPoint(x: iconCenter.x, y: frame.midY)
         dragEngageMaxY = frame.minY - Interaction.dragEngageGap
         overlay.prewarm()
         dragging = false
@@ -553,22 +555,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let now = Date()
         let expired = TimerLogic.expired(timers, now: now)
         if !expired.isEmpty {
+            let rippleOrigin = statusIconCenter()
             timers.removeAll { $0.fireDate <= now }
             timersChanged()
-            expired.forEach(fire)
+            expired.forEach { fire($0, rippleOrigin: rippleOrigin) }
         } else {
             updateStatusItem()
             syncTickTimer()
         }
     }
 
-    private func fire(_ timer: TimerRecord) {
+    private func fire(_ timer: TimerRecord, rippleOrigin: NSPoint?) {
         let soundPlayed: Bool
-        if let sound = NSSound(named: "Glass") {
+        if let sound = NSSound(named: "Hero") {
             soundPlayed = sound.play()
         } else {
             NSSound.beep()
             soundPlayed = true
+        }
+        if let rippleOrigin {
+            fireOverlay.ripple(at: rippleOrigin)
+            DebugLog.shared.write("timer ripple origin=\(pointString(rippleOrigin))")
         }
         DebugLog.shared.write("timer fired id=\(timer.id.uuidString) sound=\(soundPlayed)")
         let text = firedText(timer)
@@ -716,6 +723,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             DebugLog.shared.write(
                 "segment \(segment.text.string) x=\(segment.rect.minX) w=\(segment.rect.width)")
         }
+    }
+
+    private func statusIconCenter() -> NSPoint? {
+        guard let window = statusIconView.window, !statusIconView.bounds.isEmpty else { return nil }
+        let screenFrame = window.convertToScreen(statusIconView.convert(statusIconView.bounds, to: nil))
+        return NSPoint(x: screenFrame.midX, y: screenFrame.midY)
     }
 
     private func centerAnchorDistance() -> Double {

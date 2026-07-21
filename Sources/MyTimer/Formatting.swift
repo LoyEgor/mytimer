@@ -19,8 +19,8 @@ enum TimeFormat {
         // Clamp to 1...59 so rounding never yields "0s" or "60s".
         if seconds < 60 { return "\(min(59, max(1, Int(seconds.rounded()))))s" }
         let minutes = Int(ceil(seconds / 60))
-        if minutes < 60 { return "\(minutes)" }
-        return "\(minutes / 60)h\(String(format: "%02d", minutes % 60))"
+        if minutes < 60 { return "\(minutes)m" }
+        return "\(minutes / 60)h\(String(format: "%02d", minutes % 60))m"
     }
 
     static func spokenDuration(minutes: Int) -> String {

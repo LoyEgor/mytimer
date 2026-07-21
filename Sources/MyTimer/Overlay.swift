@@ -14,6 +14,8 @@ final class OverlayView: NSView {
     static let snapDuration = 0.95
     static let cancelDuration = 0.18
     private static let retractDuration = 0.12
+    static let rippleDuration = snapDuration - retractDuration
+    static let fireRippleDuration = rippleDuration * 2
     private static let bubbleFadeDuration = 0.3
     private static let motionHoldDuration = 0.08
     private static let lineWidth = 3.2
@@ -26,6 +28,7 @@ final class OverlayView: NSView {
     private enum Phase {
         case dragging
         case snapping(CFTimeInterval)
+        case rippling(CFTimeInterval)
         case cancelling(CFTimeInterval)
     }
 
@@ -85,6 +88,13 @@ final class OverlayView: NSView {
         ensureDisplayLink()
     }
 
+    func ripple(at point: NSPoint) {
+        phase = .rippling(CACurrentMediaTime())
+        model = Model(originScreen: point, cursorScreen: point)
+        updateBubble()
+        ensureDisplayLink()
+    }
+
     func teardown() {
         link?.invalidate()
         link = nil
@@ -111,6 +121,8 @@ final class OverlayView: NSView {
             active = moving || motionLevel > 0.001
         case .snapping(let start):
             active = now - start < Self.snapDuration
+        case .rippling(let start):
+            active = now - start < Self.fireRippleDuration
         case .cancelling(let start):
             active = now - start < Self.cancelDuration
         }
@@ -202,6 +214,10 @@ final class OverlayView: NSView {
                 drawBloom(context, at: start, color: .controlAccentColor, progress: u)
                 drawRipple(context, at: start, color: .controlAccentColor, progress: u)
             }
+        case .rippling(let startTime):
+            let progress = min(1, (CACurrentMediaTime() - startTime) / Self.fireRippleDuration)
+            drawBloom(context, at: start, color: .controlAccentColor, progress: progress)
+            drawRipple(context, at: start, color: .controlAccentColor, progress: progress)
         case .cancelling(let startTime):
             let t = CACurrentMediaTime() - startTime
             let x = min(1, t / Self.cancelDuration)
@@ -368,6 +384,18 @@ final class OverlayController {
         guard !windows.isEmpty else { return }
         forEachView { $0.finish(created: created) }
         let delay = (created ? OverlayView.snapDuration : OverlayView.cancelDuration) + 0.05
+        scheduleHide(after: delay)
+    }
+
+    func ripple(at point: NSPoint) {
+        hideWorkItem?.cancel()
+        hideWorkItem = nil
+        if windows.isEmpty { buildWindows() }
+        forEachView { $0.ripple(at: point) }
+        scheduleHide(after: OverlayView.fireRippleDuration + 0.05)
+    }
+
+    private func scheduleHide(after delay: Double) {
         let item = DispatchWorkItem { [weak self] in self?.hideNow() }
         hideWorkItem = item
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
